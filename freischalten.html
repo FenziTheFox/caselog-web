@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Freischalten – CaseLog</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .btn { display: block; width: 100%; padding: 16px; margin: 12px 0; border-radius: 12px; border: 2px solid #3D4B5F;
+    background: #3D4B5F; color: #fff; font: 600 1.05rem/1.2 system-ui, -apple-system, Roboto, sans-serif; text-align: center;
+    text-decoration: none; cursor: pointer; }
+  .btn.secondary { background: transparent; color: var(--text); border-color: var(--muted); }
+  .company { font-size: 1.4rem; font-weight: 600; margin: .2rem 0; }
+  code { word-break: break-all; font-size: .8rem; color: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <p class="muted"><a href="index.html">← CaseLog</a></p>
+  <h1>CaseLog freischalten</h1>
+
+  <section id="ok" hidden>
+    <div class="box">
+      <div class="muted">Vor-Ort-Termin für</div>
+      <div class="company" id="company"></div>
+      <div class="muted" id="until"></div>
+    </div>
+    <div id="android" hidden>
+      <a class="btn" id="open" href="#">In CaseLog freischalten</a>
+      <p class="muted">Die App fragt noch einmal nach, bevor sie etwas ändert.</p>
+    </div>
+    <div id="other" hidden>
+      <p>Öffne diesen Link bitte auf dem <strong>Android-Handy</strong>, auf dem CaseLog installiert ist –
+      z. B. indem du die Nachricht dort antippst.</p>
+    </div>
+    <button class="btn secondary" id="copy" type="button">Code kopieren</button>
+    <p class="muted" id="copied" hidden>Kopiert. In CaseLog auf „Vor-Ort-Termin“ tippen und den Code einfügen.</p>
+    <p class="muted">Falls der Knopf nicht funktioniert: Code kopieren, CaseLog öffnen, auf „Vor-Ort-Termin“ tippen und
+    den Code dort einfügen.</p>
+  </section>
+
+  <section id="missing" hidden>
+    <div class="box"><strong>CaseLog ist auf diesem Handy noch nicht installiert.</strong></div>
+    <p>Installiere zuerst die App, die du bekommen hast. Danach tippe noch einmal auf den Freischalt-Link in
+    deiner Nachricht.</p>
+  </section>
+
+  <section id="empty" hidden>
+    <p>Dieser Link enthält keinen gültigen Freischaltcode. Bitte öffne den vollständigen Link aus deiner Nachricht –
+    manche Apps kürzen lange Links ab.</p>
+  </section>
+
+  <p class="muted" style="margin-top:2rem">Der Code steht im Link hinter dem „#“ und wird beim Öffnen dieser Seite nicht
+  an den Server übertragen. Ob er echt ist, prüft die App selbst.
+  <a href="datenschutz.html">Datenschutz</a></p>
+</main>
+<script>
+(function () {
+  var show = function (id) { document.getElementById(id).hidden = false; };
+  var params = new URLSearchParams(location.search);
+  if (params.has('fehlt')) { show('missing'); return; }
+
+  var code = decodeURIComponent(location.hash.slice(1)).replace(/\s+/g, '');
+  var parts = code.split('.');
+  var payload = null;
+  try {
+    if (parts.length === 3 && parts[0] === 'CL1') {
+      var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      var bin = atob(b64 + '==='.slice((b64.length + 3) % 4));
+      payload = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, function (c) { return c.charCodeAt(0); })));
+    }
+  } catch (e) { payload = null; }
+  if (!payload || typeof payload.f !== 'string') { show('empty'); return; }
+
+  show('ok');
+  document.getElementById('company').textContent = payload.f;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(payload.b)) {
+    var d = payload.b.split('-');
+    document.getElementById('until').textContent = 'gültig bis ' + d[2] + '.' + d[1] + '.' + d[0];
+  }
+
+  if (/Android/i.test(navigator.userAgent)) {
+    show('android');
+    // ?dev: Entwickler-Version (Schema crashlog-dev); sonst die veröffentlichte App.
+    var dev = params.has('dev');
+    var page = location.origin + location.pathname;
+    var intent = 'intent://freischalten?code=' + encodeURIComponent(code) + '#Intent;scheme=' +
+      (dev ? 'crashlog-dev' : 'crashlog;package=de.caselog.app') +
+      ';S.browser_fallback_url=' + encodeURIComponent(page + '?fehlt' + (dev ? '&dev' : '')) + ';end';
+    document.getElementById('open').href = intent;
+  } else {
+    show('other');
+  }
+
+  document.getElementById('copy').addEventListener('click', function () {
+    var done = function () { document.getElementById('copied').hidden = false; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(done, function () { window.prompt('Code kopieren:', code); });
+    } else {
+      window.prompt('Code kopieren:', code);
+    }
+  });
+})();
+</script>
+</body>
+</html>
